@@ -22,13 +22,15 @@ A partir do requisito recebido, gere exatamente os blocos abaixo:
 5. risks
 6. csv
 
-Regras:
-- testCases: liste casos de teste claros e objetivos
+Regras obrigatórias:
+- testCases: liste casos de teste claros, objetivos e organizados
 - bdd: gere cenários em Gherkin PT-BR
-- negativeScenarios: liste cenários negativos
+- negativeScenarios: liste cenários negativos e de exceção
 - risks: liste bugs/riscos prováveis
 - csv: gere conteúdo CSV no formato Action,Data,Expected Result
 - Retorne SOMENTE JSON válido
+- Não inclua markdown
+- Não inclua crases
 `;
 
     const userPrompt = `Requisito:\n${requirement}`;
@@ -37,34 +39,44 @@ Regras:
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "user", content: userPrompt }
         ],
-        temperature: 0.4,
-      }),
+        temperature: 0.4
+      })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: data?.error?.message || "Erro ao chamar a IA.",
+        error: data?.error?.message || "Erro ao chamar a IA."
       });
     }
 
-    const content = data.choices?.[0]?.message?.content;
+    const content = data?.choices?.[0]?.message?.content;
 
     if (!content) {
-      return res.status(500).json({ error: "Resposta vazia da IA." });
+      return res.status(500).json({
+        error: "A IA retornou resposta vazia."
+      });
     }
 
-    const parsed = JSON.parse(content);
+    let parsed;
+
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return res.status(500).json({
+        error: "Não foi possível interpretar a resposta JSON da IA."
+      });
+    }
 
     return res.status(200).json({
       summary: parsed.summary || "",
@@ -72,11 +84,11 @@ Regras:
       bdd: parsed.bdd || "",
       negativeScenarios: parsed.negativeScenarios || "",
       risks: parsed.risks || "",
-      csv: parsed.csv || "",
+      csv: parsed.csv || ""
     });
   } catch (error) {
     return res.status(500).json({
-      error: error.message || "Erro interno no servidor.",
+      error: error.message || "Erro interno no servidor."
     });
   }
 }
