@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+﻿import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Sparkles,
@@ -43,16 +43,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
-
-  const promptPreview = useMemo(() => {
-    return `Você é um especialista sênior em QA. A partir do requisito informado, gere:
-1. resumo funcional
-2. casos de teste
-3. BDD em PT-BR
-4. cenários negativos
-5. bugs/riscos prováveis
-6. CSV em Action,Data,Expected Result`;
-  }, []);
 
   async function handleGenerate() {
     if (!requirement.trim()) {
@@ -181,10 +171,6 @@ export default function App() {
 
               {error && <div className="error-box">{error}</div>}
 
-              <div className="footer-note">
-                Dica para a apresentação: use um dos exemplos prontos e depois
-                teste um requisito novo ao vivo.
-              </div>
             </div>
           </motion.section>
 
@@ -195,27 +181,20 @@ export default function App() {
             transition={{ delay: 0.08 }}
           >
             <div className="small-card">
-              <h2 className="side-title">Destaques do MVP</h2>
-              <ul className="list">
-                <li>IA generativa integrada por API real</li>
-                <li>Casos de teste e BDD em PT-BR</li>
-                <li>Cenários negativos e riscos</li>
-                <li>Botão para copiar BDD</li>
-                <li>Exportação CSV</li>
-                <li>Pronto para deploy no Vercel</li>
-              </ul>
-            </div>
-
-            <div className="small-card">
-              <h2 className="side-title">Prompt de sistema</h2>
-              <div className="prompt-preview">{promptPreview}</div>
-            </div>
+              <h2 className="side-title">QA Copilot AI</h2>
+		<div className="prompt-preview">
+			      Assistente inteligente para geração de artefatos de teste a partir de requisitos funcionais.
+		</div>
+		</div>
           </motion.aside>
         </div>
 
         {result && (
           <>
             <div className="result-toolbar">
+		<div className="btn-secondary" style={{ cursor: "default" }}>
+			Provedor: {result.provider === "groq" ? "Groq" : result.provider === "gemini" ? "Gemini" : "Demo"}
+  </div>
               <button
                 className="btn-secondary"
                 onClick={() => copyText(result.bdd || "", "BDD")}

@@ -1,26 +1,9 @@
-﻿export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Método não permitido." });
-  }
-
-  try {
-    const { requirement } = req.body || {};
-
-    if (!requirement || !requirement.trim()) {
-      return res.status(400).json({ error: "Requisito não informado." });
-    }
-
-    const systemPrompt = `
+﻿function buildSystemPrompt() {
+  return `
 Você é um especialista sênior em QA.
 Responda sempre em português do Brasil.
-A partir do requisito recebido, gere exatamente os blocos abaixo:
-
-1. summary
-2. testCases
-3. bdd
-4. negativeScenarios
-5. risks
-6. csv
+Retorne SOMENTE JSON válido com as chaves:
+summary, testCases, bdd, negativeScenarios, risks, csv
 
 Regras obrigatórias:
 - testCases: liste casos de teste claros, objetivos e organizados
@@ -28,64 +11,142 @@ Regras obrigatórias:
 - negativeScenarios: liste cenários negativos e de exceção
 - risks: liste bugs/riscos prováveis
 - csv: gere conteúdo CSV no formato Action,Data,Expected Result
-- Retorne SOMENTE JSON válido
-- Não inclua markdown
-- Não inclua crases
+- não use markdown
+- não use crases
 `;
+}
 
-    const userPrompt = `Requisito:\n${requirement}`;
+function demoFallback() {
+  return {
+    summary:
+      "Modo demonstração ativado. O sistema analisou o requisito e retornou uma estrutura padrão de QA.",
+    testCases:
+      "1. Validar fluxo principal com dados válidos\n2. Validar obrigatoriedade dos campos\n3. Validar mensagens de erro\n4. Validar comportamento em falha externa",
+    bdd:
+      "Funcionalidade: Validação do requisito\n\nCenário: Executar fluxo principal com sucesso\nDado que o usuário informe dados válidos\nQuando executar a ação principal\nEntão o sistema deve concluir o processamento com sucesso",
+    negativeScenarios:
+      "Campos obrigatórios vazios\nDados inválidos\nFalha de integração externa\nTentativa duplicada",
+    risks:
+      "Ausência de validação de entrada\nMensagens inconsistentes\nFalha de tratamento de timeout\nDuplicidade de processamento",
+    csv:
+      "Action,Data,Expected Result\nPreencher dados válidos,,Processamento com sucesso\nEnviar campos vazios,,Exibir validação de obrigatoriedade"
+  };
+}
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+function safeParse(content) {
+  try {
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
+}
+
+async function callGroq(requirement) {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.4,
+      messages: [
+        { role: "system", content: buildSystemPrompt() },
+        { role: "user", content: `Requisito:\n${requirement}` }
+      ]
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || "Erro no Groq.");
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  const parsed = safeParse(content);
+
+  if (!parsed) {
+    throw new Error("Groq retornou JSON inválido.");
+  }
+
+  return parsed;
+}
+
+async function callGemini(requirement) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+        contents: [
+          {
+            parts: [
+              {
+                text: `${buildSystemPrompt()}\n\nRequisito:\n${requirement}`
+              }
+            ]
+          }
         ],
-        temperature: 0.4
+        generationConfig: {
+          temperature: 0.4,
+          responseMimeType: "application/json"
+        }
       })
-    });
+    }
+  );
 
-    const data = await response.json();
+  const data = await response.json();
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: data?.error?.message || "Erro ao chamar a IA."
-      });
+  if (!response.ok) {
+    throw new Error(data?.error?.message || "Erro no Gemini.");
+  }
+
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const parsed = safeParse(content);
+
+  if (!parsed) {
+    throw new Error("Gemini retornou JSON inválido.");
+  }
+
+  return parsed;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Método não permitido." });
+  }
+
+  try {
+    const { requirement } = req.body || {};
+
+    if (!requirement?.trim()) {
+      return res.status(400).json({ error: "Requisito não informado." });
     }
 
-    const content = data?.choices?.[0]?.message?.content;
-
-    if (!content) {
-      return res.status(500).json({
-        error: "A IA retornou resposta vazia."
-      });
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const result = await callGroq(requirement);
+        return res.status(200).json({ ...result, provider: "groq" });
+      } catch (error) {
+        console.error("Groq falhou:", error.message);
+      }
     }
 
-    let parsed;
-
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      return res.status(500).json({
-        error: "Não foi possível interpretar a resposta JSON da IA."
-      });
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const result = await callGemini(requirement);
+        return res.status(200).json({ ...result, provider: "gemini" });
+      } catch (error) {
+        console.error("Gemini falhou:", error.message);
+      }
     }
 
-    return res.status(200).json({
-      summary: parsed.summary || "",
-      testCases: parsed.testCases || "",
-      bdd: parsed.bdd || "",
-      negativeScenarios: parsed.negativeScenarios || "",
-      risks: parsed.risks || "",
-      csv: parsed.csv || ""
-    });
+    return res.status(200).json({ ...demoFallback(), provider: "demo" });
   } catch (error) {
     return res.status(500).json({
       error: error.message || "Erro interno no servidor."
