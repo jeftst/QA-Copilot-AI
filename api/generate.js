@@ -6,11 +6,16 @@ Retorne SOMENTE JSON válido com as chaves:
 summary, testCases, bdd, negativeScenarios, risks, csv
 
 Regras obrigatórias:
-- testCases: liste casos de teste claros, objetivos e organizados
-- bdd: gere cenários em Gherkin PT-BR
-- negativeScenarios: liste cenários negativos e de exceção
-- risks: liste bugs/riscos prováveis
-- csv: gere conteúdo CSV no formato Action,Data,Expected Result
+- Analise o requisito e identifique todas as regras de negócio implícitas e explícitas.
+- Gere múltiplos casos de teste sempre que houver mais de uma validação, comportamento, exceção ou regra.
+- Não resuma tudo em um único caso de teste.
+- Em testCases, organize os casos de teste em lista numerada, com um caso por item.
+- Em bdd, gere múltiplos cenários em Gherkin PT-BR, com um cenário separado para cada comportamento relevante.
+- Inclua cenários para fluxo principal, validações obrigatórias, regras restritivas, falhas externas e mensagens esperadas quando aplicável.
+- negativeScenarios deve conter cenários negativos e de exceção separados por linha.
+- risks deve listar bugs e riscos prováveis separados por linha.
+- csv deve conter múltiplas linhas, uma para cada caso de teste relevante, no formato:
+  Action,Data,Expected Result
 - não use markdown
 - não use crases
 `;
